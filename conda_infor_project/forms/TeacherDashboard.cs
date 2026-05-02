@@ -1,18 +1,25 @@
 using conda_infor_project.models;
+using conda_infor_project.repository;
 
 namespace conda_infor_project
 {
     public class TeacherDashboard : Form
     {
         private readonly User _currentUser;
-        private readonly DataGridView _activityGrid;
+        private readonly string _accessToken;
+        private readonly SchoolClass _schoolClass;
+        private readonly ClassRepository _classRepository;
+        private readonly DataGridView _studentsGrid;
         private readonly Label _statusLabel;
 
-        public TeacherDashboard(User currentUser)
+        public TeacherDashboard(User currentUser, string accessToken, SchoolClass schoolClass)
         {
             _currentUser = currentUser;
+            _accessToken = accessToken;
+            _schoolClass = schoolClass;
+            _classRepository = new ClassRepository();
 
-            Text = "Teacher Dashboard";
+            Text = $"Класс {_schoolClass.Name}";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(960, 600);
             Size = new Size(1100, 680);
@@ -25,19 +32,19 @@ namespace conda_infor_project
                 Padding = new Padding(24),
                 BackColor = Color.FromArgb(245, 247, 250)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
 
             root.Controls.Add(CreateHeader(), 0, 0);
 
-            _activityGrid = CreateActivityGrid();
-            root.Controls.Add(_activityGrid, 0, 1);
+            _studentsGrid = CreateStudentsGrid();
+            root.Controls.Add(_studentsGrid, 0, 1);
 
             _statusLabel = new Label
             {
                 Dock = DockStyle.Fill,
-                Text = "No live activity data loaded yet.",
+                Text = "Загрузка учеников...",
                 TextAlign = ContentAlignment.MiddleLeft,
                 ForeColor = Color.FromArgb(91, 104, 124),
                 Font = new Font("Segoe UI", 10F)
@@ -45,7 +52,7 @@ namespace conda_infor_project
             root.Controls.Add(_statusLabel, 0, 2);
 
             Controls.Add(root);
-            LoadSampleRows();
+            Shown += async (_, _) => await LoadStudentsAsync();
         }
 
         private Control CreateHeader()
@@ -53,18 +60,19 @@ namespace conda_infor_project
             var header = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3,
                 RowCount = 2
             };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-            header.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
-            header.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+            header.RowStyles.Add(new RowStyle(SizeType.Percent, 58));
+            header.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
 
             var title = new Label
             {
                 Dock = DockStyle.Fill,
-                Text = "Teacher Dashboard",
+                Text = $"Класс {_schoolClass.Name}",
                 Font = new Font("Segoe UI", 24F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(22, 34, 51),
                 TextAlign = ContentAlignment.BottomLeft
@@ -73,33 +81,44 @@ namespace conda_infor_project
             var subtitle = new Label
             {
                 Dock = DockStyle.Fill,
-                Text = $"Signed in as {_currentUser.FullName} ({_currentUser.Email})",
+                Text = $"Учитель: {_currentUser.FullName} ({_currentUser.Email})",
                 Font = new Font("Segoe UI", 10.5F),
                 ForeColor = Color.FromArgb(91, 104, 124),
                 TextAlign = ContentAlignment.TopLeft
             };
 
+            var backButton = new Button
+            {
+                Dock = DockStyle.Fill,
+                Text = "Назад",
+                Font = new Font("Segoe UI", 10F),
+                FlatStyle = FlatStyle.Flat
+            };
+            backButton.Click += (_, _) => Close();
+
             var refreshButton = new Button
             {
                 Dock = DockStyle.Fill,
-                Text = "Refresh",
+                Text = "Обновить",
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 BackColor = Color.FromArgb(31, 97, 141),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat
             };
             refreshButton.FlatAppearance.BorderSize = 0;
-            refreshButton.Click += (_, _) => RefreshDashboard();
+            refreshButton.Click += async (_, _) => await LoadStudentsAsync();
 
             header.Controls.Add(title, 0, 0);
             header.Controls.Add(subtitle, 0, 1);
-            header.Controls.Add(refreshButton, 1, 0);
+            header.Controls.Add(backButton, 1, 0);
+            header.SetRowSpan(backButton, 2);
+            header.Controls.Add(refreshButton, 2, 0);
             header.SetRowSpan(refreshButton, 2);
 
             return header;
         }
 
-        private static DataGridView CreateActivityGrid()
+        private static DataGridView CreateStudentsGrid()
         {
             var grid = new DataGridView
             {
@@ -114,11 +133,10 @@ namespace conda_infor_project
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            grid.Columns.Add("student", "Student");
-            grid.Columns.Add("activeWindow", "Active window");
-            grid.Columns.Add("processes", "Processes");
-            grid.Columns.Add("status", "Status");
-            grid.Columns.Add("updatedAt", "Updated");
+            grid.Columns.Add("fullName", "ФИО");
+            grid.Columns.Add("email", "Логин");
+            grid.Columns.Add("role", "Роль");
+            grid.Columns.Add("status", "Статус");
 
             grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             grid.DefaultCellStyle.Font = new Font("Segoe UI", 10F);
@@ -128,15 +146,33 @@ namespace conda_infor_project
             return grid;
         }
 
-        private void LoadSampleRows()
+        private async Task LoadStudentsAsync()
         {
-            _activityGrid.Rows.Clear();
-            _activityGrid.Rows.Add("No students online", "-", "-", "Waiting", DateTime.Now.ToString("HH:mm:ss"));
-        }
+            try
+            {
+                _statusLabel.Text = "Загрузка учеников...";
+                _studentsGrid.Rows.Clear();
 
-        private void RefreshDashboard()
-        {
-            _statusLabel.Text = $"Last refresh: {DateTime.Now:HH:mm:ss}. Live Supabase activity loading is not connected yet.";
+                List<User> students = await _classRepository.GetClassStudentsAsync(_schoolClass.Id, _accessToken);
+                foreach (User student in students)
+                {
+                    _studentsGrid.Rows.Add(student.FullName, student.Email, student.Role, "Ожидает данные активности");
+                }
+
+                if (students.Count == 0)
+                {
+                    _studentsGrid.Rows.Add("В классе пока нет учеников", "-", "-", "-");
+                    _statusLabel.Text = "Ученики не найдены.";
+                    return;
+                }
+
+                _statusLabel.Text = $"Учеников: {students.Count}. Мониторинг активности подключим следующим шагом.";
+            }
+            catch (Exception ex)
+            {
+                _statusLabel.Text = "Ошибка загрузки учеников.";
+                MessageBox.Show(ex.Message, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

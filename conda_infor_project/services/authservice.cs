@@ -6,13 +6,14 @@ namespace conda_infor_project.services
     public class AuthService
     {
         private readonly AuthRepository _authRepository;
+        public string? CurrentAccessToken { get; private set; }
 
         public AuthService()
         {
             _authRepository = new AuthRepository();
         }
 
-        public async Task<User> RegisterAsync(string email, string password, string fullName, string role = "user")
+        public async Task<User> RegisterAsync(string email, string password, string fullName, string role = "student")
         {
             try
             {
@@ -31,11 +32,12 @@ namespace conda_infor_project.services
 
                 if (authResponse?.User?.Id == null)
                 {
-                    throw new Exception("No user ID returned from sign up");
+                    throw new Exception("Supabase не вернул id пользователя.");
                 }
 
                 Logger.LogInfo($"Auth account created with ID: {authResponse.User.Id}");
                 AuthSession? session = authResponse.CurrentSession;
+                CurrentAccessToken = session?.AccessToken;
 
                 if (string.IsNullOrWhiteSpace(session?.AccessToken))
                 {
@@ -73,7 +75,7 @@ namespace conda_infor_project.services
             catch (Exception ex)
             {
                 Logger.LogError($"Registration failed for email: {email}", ex);
-                throw new Exception($"Registration failed: {ex.Message}", ex);
+                throw new Exception(ex.Message, ex);
             }
         }
 
@@ -88,10 +90,11 @@ namespace conda_infor_project.services
 
                 if (session?.AccessToken == null)
                 {
-                    throw new Exception("Authentication failed: no session token received");
+                    throw new Exception("Supabase не вернул токен сессии.");
                 }
 
                 Logger.LogInfo($"Authentication successful for email: {email}");
+                CurrentAccessToken = session.AccessToken;
 
                 User? userProfile = await _authRepository.GetUserByEmailAsync(email, session.AccessToken);
 
@@ -108,14 +111,14 @@ namespace conda_infor_project.services
                             userId,
                             email,
                             fullName,
-                            "user",
+                            "student",
                             session.AccessToken
                         );
                     }
                     catch (Exception profileException)
                     {
                         Logger.LogWarning($"Login succeeded, but profile creation failed: {profileException.Message}");
-                        userProfile = CreateFallbackUser(userId, email, fullName, "user");
+                        userProfile = CreateFallbackUser(userId, email, fullName, "student");
                     }
                 }
 
@@ -125,7 +128,7 @@ namespace conda_infor_project.services
             catch (Exception ex)
             {
                 Logger.LogError($"Login failed for email: {email}", ex);
-                throw new Exception($"Login failed: {ex.Message}", ex);
+                throw new Exception(ex.Message, ex);
             }
         }
 

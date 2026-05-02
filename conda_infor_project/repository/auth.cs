@@ -148,13 +148,12 @@ namespace conda_infor_project.repository
             try
             {
                 string requestUrl = "/rest/v1/profiles";
-                var user = new User
+                var user = new
                 {
-                    Id = userId,
-                    Email = email,
-                    Login = email,
-                    FullName = fullName,
-                    Role = role
+                    id = userId,
+                    email,
+                    full_name = fullName,
+                    role
                 };
 
                 string json = JsonSerializer.Serialize(user);

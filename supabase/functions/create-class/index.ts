@@ -136,6 +136,21 @@ Deno.serve(async (request) => {
           throw new Error(profileError.message);
         }
 
+        const { error: classStudentError } = await supabaseAdmin
+          .from("class_students")
+          .upsert({
+            class_id: createdClass.id,
+            student_id: authResult.user.id,
+            display_name: fullName,
+          }, {
+            onConflict: "class_id,student_id",
+          });
+
+        if (classStudentError) {
+          await supabaseAdmin.auth.admin.deleteUser(authResult.user.id);
+          throw new Error(classStudentError.message);
+        }
+
         createdStudents.push({
           fullName,
           email,

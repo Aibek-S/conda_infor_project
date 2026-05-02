@@ -19,36 +19,36 @@ namespace conda_infor_project
             string password = passwordBox.Text ?? string.Empty;
 
             string fullName = email.Split('@')[0];
-            string role = "user";
+            string role = "student";
 
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show("Please enter email and password", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Введите email и пароль.", "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (!IsValidEmail(email))
             {
-                MessageBox.Show("Please enter a valid email address (e.g., user@example.com)", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Введите корректный email, например user@example.com.", "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (password.Length < 6)
             {
-                MessageBox.Show("Password must be at least 6 characters", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Пароль должен содержать минимум 6 символов.", "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             try
             {
                 registerEnterButton.Enabled = false;
-                registerEnterButton.Text = "Registering...";
+                registerEnterButton.Text = "Регистрация...";
 
                 User user = await _authService.RegisterAsync(email, password, fullName, role);
 
                 if (user != null)
                 {
-                    MessageBox.Show($"Registration successful! Welcome {user.FullName}\n\nYou can now login with your email and password.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"Аккаунт создан: {user.FullName}\n\nТеперь можно войти с этим email и паролем.", "Готово", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     login loginForm = new login();
                     loginForm.Show();
@@ -60,19 +60,19 @@ namespace conda_infor_project
                 string errorMessage = ex.Message;
                 if (errorMessage.Contains("already registered", StringComparison.OrdinalIgnoreCase))
                 {
-                    errorMessage = "This email is already registered. Try logging in or use another email.";
+                    errorMessage = "Этот email уже зарегистрирован. Попробуйте войти или используйте другой email.";
                 }
                 else if (errorMessage.Contains("invalid", StringComparison.OrdinalIgnoreCase))
                 {
-                    errorMessage = "Invalid email or password. Check the data and try again.";
+                    errorMessage = "Неверный email или пароль. Проверьте данные и попробуйте снова.";
                 }
 
-                MessageBox.Show($"Registration failed: {errorMessage}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Не удалось зарегистрироваться: {errorMessage}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
                 registerEnterButton.Enabled = true;
-                registerEnterButton.Text = "Register";
+                registerEnterButton.Text = "Зарегистрироваться";
             }
         }
 

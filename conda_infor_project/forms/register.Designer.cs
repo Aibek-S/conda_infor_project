@@ -131,7 +131,7 @@
             Controls.Add(label2);
             Controls.Add(label1);
             Name = "register";
-            Text = "Registration";
+            Text = "Регистрация";
             ResumeLayout(false);
             PerformLayout();
         }

@@ -20,47 +20,51 @@ namespace conda_infor_project
 
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
             {
-                MessageBox.Show("Please enter email and password", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Введите email и пароль.", "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (!IsValidEmail(email))
             {
-                MessageBox.Show("Please enter a valid email address (e.g., user@example.com)", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Введите корректный email, например user@example.com.", "Ошибка ввода", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             try
             {
                 loginEnterButton.Enabled = false;
-                loginEnterButton.Text = "Logging in...";
+                loginEnterButton.Text = "Вход...";
 
                 User user = await _authService.LoginAsync(email, password);
 
                 if (user != null)
                 {
-                    MessageBox.Show($"Login successful! Welcome {user.FullName}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
                     if (!string.Equals(user.Role, "teacher", StringComparison.OrdinalIgnoreCase))
                     {
-                        MessageBox.Show("This account is not a teacher account. Teacher dashboard is available only for role: teacher.", "Access denied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("Это не аккаунт учителя. Панель учителя доступна только для роли teacher.", "Доступ запрещен", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
 
-                    TeacherDashboard dashboard = new TeacherDashboard(user);
-                    dashboard.FormClosed += (_, _) => Close();
-                    dashboard.Show();
+                    if (string.IsNullOrWhiteSpace(_authService.CurrentAccessToken))
+                    {
+                        MessageBox.Show("Вход выполнен, но токен сессии не найден. Попробуйте войти еще раз.", "Ошибка сессии", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    ClassesForm classesForm = new ClassesForm(user, _authService.CurrentAccessToken);
+                    classesForm.FormClosed += (_, _) => Close();
+                    classesForm.Show();
                     Hide();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Login failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"Не удалось войти: {ex.Message}", "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
                 loginEnterButton.Enabled = true;
-                loginEnterButton.Text = "Login";
+                loginEnterButton.Text = "Войти";
             }
         }
 
