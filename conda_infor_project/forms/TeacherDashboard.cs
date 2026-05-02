@@ -9,7 +9,7 @@ namespace conda_infor_project
         private readonly string _accessToken;
         private readonly SchoolClass _schoolClass;
         private readonly ClassRepository _classRepository;
-        private readonly DataGridView _studentsGrid;
+        private readonly DataGridView _activityGrid;
         private readonly Label _statusLabel;
 
         public TeacherDashboard(User currentUser, string accessToken, SchoolClass schoolClass)
@@ -38,13 +38,13 @@ namespace conda_infor_project
 
             root.Controls.Add(CreateHeader(), 0, 0);
 
-            _studentsGrid = CreateStudentsGrid();
-            root.Controls.Add(_studentsGrid, 0, 1);
+            _activityGrid = CreateActivityGrid();
+            root.Controls.Add(_activityGrid, 0, 1);
 
             _statusLabel = new Label
             {
                 Dock = DockStyle.Fill,
-                Text = "Загрузка учеников...",
+                Text = "Загрузка активности...",
                 TextAlign = ContentAlignment.MiddleLeft,
                 ForeColor = Color.FromArgb(91, 104, 124),
                 Font = new Font("Segoe UI", 10F)
@@ -52,7 +52,7 @@ namespace conda_infor_project
             root.Controls.Add(_statusLabel, 0, 2);
 
             Controls.Add(root);
-            Shown += async (_, _) => await LoadStudentsAsync();
+            Shown += async (_, _) => await LoadActivityAsync();
         }
 
         private Control CreateHeader()
@@ -106,7 +106,7 @@ namespace conda_infor_project
                 FlatStyle = FlatStyle.Flat
             };
             refreshButton.FlatAppearance.BorderSize = 0;
-            refreshButton.Click += async (_, _) => await LoadStudentsAsync();
+            refreshButton.Click += async (_, _) => await LoadActivityAsync();
 
             header.Controls.Add(title, 0, 0);
             header.Controls.Add(subtitle, 0, 1);
@@ -118,7 +118,7 @@ namespace conda_infor_project
             return header;
         }
 
-        private static DataGridView CreateStudentsGrid()
+        private static DataGridView CreateActivityGrid()
         {
             var grid = new DataGridView
             {
@@ -135,8 +135,10 @@ namespace conda_infor_project
 
             grid.Columns.Add("fullName", "ФИО");
             grid.Columns.Add("email", "Логин");
-            grid.Columns.Add("role", "Роль");
             grid.Columns.Add("status", "Статус");
+            grid.Columns.Add("activeWindow", "Активное окно");
+            grid.Columns.Add("processes", "Процессы");
+            grid.Columns.Add("lastSeen", "Последний сигнал");
 
             grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             grid.DefaultCellStyle.Font = new Font("Segoe UI", 10F);
@@ -146,31 +148,47 @@ namespace conda_infor_project
             return grid;
         }
 
-        private async Task LoadStudentsAsync()
+        private async Task LoadActivityAsync()
         {
             try
             {
-                _statusLabel.Text = "Загрузка учеников...";
-                _studentsGrid.Rows.Clear();
+                _statusLabel.Text = "Загрузка активности...";
+                _activityGrid.Rows.Clear();
 
-                List<User> students = await _classRepository.GetClassStudentsAsync(_schoolClass.Id, _accessToken);
-                foreach (User student in students)
+                List<LiveActivityRow> rows = await _classRepository.GetClassLiveActivityAsync(_schoolClass.Id, _accessToken);
+                foreach (LiveActivityRow row in rows)
                 {
-                    _studentsGrid.Rows.Add(student.FullName, student.Email, student.Role, "Ожидает данные активности");
+                    string processText = row.ProcessList.Count == 0
+                        ? "-"
+                        : string.Join(", ", row.ProcessList.Take(8));
+                    if (row.ProcessList.Count > 8)
+                    {
+                        processText += $" +{row.ProcessList.Count - 8}";
+                    }
+
+                    _activityGrid.Rows.Add(
+                        row.FullName,
+                        row.Email,
+                        row.Status == "online" ? "Онлайн" : "Офлайн",
+                        string.IsNullOrWhiteSpace(row.ActiveWindow) ? "-" : row.ActiveWindow,
+                        processText,
+                        row.LastSeen?.ToLocalTime().ToString("HH:mm:ss") ?? "-"
+                    );
                 }
 
-                if (students.Count == 0)
+                if (rows.Count == 0)
                 {
-                    _studentsGrid.Rows.Add("В классе пока нет учеников", "-", "-", "-");
+                    _activityGrid.Rows.Add("В классе пока нет учеников", "-", "-", "-", "-", "-");
                     _statusLabel.Text = "Ученики не найдены.";
                     return;
                 }
 
-                _statusLabel.Text = $"Учеников: {students.Count}. Мониторинг активности подключим следующим шагом.";
+                int onlineCount = rows.Count(row => row.Status == "online");
+                _statusLabel.Text = $"Учеников: {rows.Count}. Онлайн: {onlineCount}. Обновлено: {DateTime.Now:HH:mm:ss}.";
             }
             catch (Exception ex)
             {
-                _statusLabel.Text = "Ошибка загрузки учеников.";
+                _statusLabel.Text = "Ошибка загрузки активности.";
                 MessageBox.Show(ex.Message, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

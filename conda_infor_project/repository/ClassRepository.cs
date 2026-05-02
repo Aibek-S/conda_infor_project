@@ -56,6 +56,28 @@ namespace conda_infor_project.repository
                 .ToList();
         }
 
+        public async Task<List<LiveActivityRow>> GetClassLiveActivityAsync(string classId, string accessToken)
+        {
+            string json = JsonSerializer.Serialize(new
+            {
+                target_class_id = classId
+            }, JsonOptions);
+
+            using HttpRequestMessage request = CreateAuthorizedRequest(HttpMethod.Post, "/rest/v1/rpc/get_class_live_activity", accessToken);
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            HttpResponseMessage response = await _client.SendAsync(request);
+            string responseJson = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning($"GetClassLiveActivity error (Status {response.StatusCode}): {responseJson}");
+                throw new Exception("Не удалось загрузить активность класса.");
+            }
+
+            return JsonSerializer.Deserialize<List<LiveActivityRow>>(responseJson, JsonOptions) ?? new List<LiveActivityRow>();
+        }
+
         public async Task<CreateClassResponse> CreateClassAsync(CreateClassRequest payload, string accessToken)
         {
             string json = JsonSerializer.Serialize(payload, JsonOptions);

@@ -73,4 +73,28 @@ namespace conda_infor_project.models
         [JsonPropertyName("reason")]
         public string Reason { get; set; } = string.Empty;
     }
+
+    public class LiveActivityRow
+    {
+        [JsonPropertyName("student_id")]
+        public string StudentId { get; set; } = string.Empty;
+
+        [JsonPropertyName("full_name")]
+        public string FullName { get; set; } = string.Empty;
+
+        [JsonPropertyName("email")]
+        public string Email { get; set; } = string.Empty;
+
+        [JsonPropertyName("active_window")]
+        public string? ActiveWindow { get; set; }
+
+        [JsonPropertyName("process_list")]
+        public List<string> ProcessList { get; set; } = new List<string>();
+
+        [JsonPropertyName("last_seen")]
+        public DateTime? LastSeen { get; set; }
+
+        [JsonPropertyName("status")]
+        public string Status { get; set; } = "offline";
+    }
 }
