@@ -122,6 +122,10 @@
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            MinimumSize = new Size(816, 489);
+            MaximumSize = new Size(816, 489);
             Controls.Add(registerLinkLabel);
             Controls.Add(loginEnterButton);
             Controls.Add(label4);

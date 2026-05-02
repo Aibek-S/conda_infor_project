@@ -88,21 +88,18 @@ namespace conda_infor_project
             {
                 Dock = DockStyle.Fill,
                 Text = "Закрыть",
-                Font = new Font("Segoe UI", 10F),
-                FlatStyle = FlatStyle.Flat
+                Font = new Font("Segoe UI", 10F)
             };
+            StyleSecondaryButton(closeButton);
             closeButton.Click += (_, _) => Close();
 
             _createButton = new Button
             {
                 Dock = DockStyle.Fill,
                 Text = "Создать",
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                BackColor = Color.FromArgb(31, 97, 141),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold)
             };
-            _createButton.FlatAppearance.BorderSize = 0;
+            StylePrimaryButton(_createButton);
             _createButton.Click += async (_, _) => await CreateClassAsync();
 
             footer.Controls.Add(_statusLabel, 0, 0);
@@ -159,7 +156,10 @@ namespace conda_infor_project
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                BorderStyle = BorderStyle.FixedSingle,
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                GridColor = Color.FromArgb(229, 235, 241)
             };
 
             grid.Columns.Add("fullName", "ФИО");
@@ -168,8 +168,20 @@ namespace conda_infor_project
             grid.Columns.Add("status", "Статус");
 
             grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(8, 8, 8, 8);
+            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(237, 244, 250);
+            grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(22, 34, 51);
+            grid.EnableHeadersVisualStyles = false;
             grid.DefaultCellStyle.Font = new Font("Segoe UI", 10F);
-            grid.RowTemplate.Height = 32;
+            grid.DefaultCellStyle.Padding = new Padding(10, 8, 10, 8);
+            grid.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 252, 254);
+            grid.RowTemplate.Height = 46;
+
+            grid.Columns["fullName"]!.FillWeight = 150;
+            grid.Columns["email"]!.FillWeight = 180;
+            grid.Columns["password"]!.FillWeight = 110;
+            grid.Columns["status"]!.FillWeight = 170;
 
             return grid;
         }
@@ -240,6 +252,27 @@ namespace conda_infor_project
                 _createButton.Enabled = true;
                 _createButton.Text = "Создать";
             }
+        }
+
+        private static void StylePrimaryButton(Button button)
+        {
+            button.BackColor = Color.FromArgb(31, 97, 141);
+            button.ForeColor = Color.White;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.Margin = new Padding(8, 14, 0, 14);
+            button.Cursor = Cursors.Hand;
+        }
+
+        private static void StyleSecondaryButton(Button button)
+        {
+            button.BackColor = Color.White;
+            button.ForeColor = Color.FromArgb(31, 97, 141);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderColor = Color.FromArgb(31, 97, 141);
+            button.FlatAppearance.BorderSize = 1;
+            button.Margin = new Padding(8, 14, 8, 14);
+            button.Cursor = Cursors.Hand;
         }
     }
 }

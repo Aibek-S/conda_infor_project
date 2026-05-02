@@ -65,10 +65,11 @@ namespace conda_infor_project
             var header = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 2,
+                ColumnCount = 3,
                 RowCount = 2
             };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
             header.RowStyles.Add(new RowStyle(SizeType.Percent, 58));
             header.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
@@ -95,17 +96,25 @@ namespace conda_infor_project
             {
                 Dock = DockStyle.Fill,
                 Text = Ru("+ Создать класс"),
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                BackColor = Color.FromArgb(31, 97, 141),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold)
             };
-            addButton.FlatAppearance.BorderSize = 0;
+            StylePrimaryButton(addButton);
             addButton.Click += async (_, _) => await OpenCreateClassFormAsync();
+
+            var logoutButton = new Button
+            {
+                Dock = DockStyle.Fill,
+                Text = "Выйти",
+                Font = new Font("Segoe UI", 10F)
+            };
+            StyleSecondaryButton(logoutButton);
+            logoutButton.Click += (_, _) => Logout();
 
             header.Controls.Add(title, 0, 0);
             header.Controls.Add(subtitle, 0, 1);
-            header.Controls.Add(addButton, 1, 0);
+            header.Controls.Add(logoutButton, 1, 0);
+            header.SetRowSpan(logoutButton, 2);
+            header.Controls.Add(addButton, 2, 0);
             header.SetRowSpan(addButton, 2);
 
             return header;
@@ -181,12 +190,9 @@ namespace conda_infor_project
                 Width = 340,
                 Height = 72,
                 Text = Ru("+ Добавить первый класс"),
-                Font = new Font("Segoe UI", 15F, FontStyle.Bold),
-                BackColor = Color.FromArgb(31, 97, 141),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
+                Font = new Font("Segoe UI", 15F, FontStyle.Bold)
             };
-            addButton.FlatAppearance.BorderSize = 0;
+            StylePrimaryButton(addButton);
             addButton.Click += async (_, _) => await OpenCreateClassFormAsync();
 
             panel.Controls.Add(new Label(), 0, 0);
@@ -209,9 +215,52 @@ namespace conda_infor_project
         private void OpenTeacherDashboard(SchoolClass schoolClass)
         {
             var dashboard = new TeacherDashboard(_currentUser, _accessToken, schoolClass);
-            dashboard.FormClosed += (_, _) => Show();
+            dashboard.FormClosed += (_, _) =>
+            {
+                if (dashboard.WasLoggedOut)
+                {
+                    Close();
+                    return;
+                }
+
+                Show();
+            };
             dashboard.Show();
             Hide();
+        }
+
+        private void Logout()
+        {
+            login? loginForm = Application.OpenForms.OfType<login>().FirstOrDefault();
+            if (loginForm == null)
+            {
+                loginForm = new login();
+            }
+
+            loginForm.Show();
+            loginForm.Activate();
+            Close();
+        }
+
+        private static void StylePrimaryButton(Button button)
+        {
+            button.BackColor = Color.FromArgb(31, 97, 141);
+            button.ForeColor = Color.White;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.Margin = new Padding(8, 14, 0, 14);
+            button.Cursor = Cursors.Hand;
+        }
+
+        private static void StyleSecondaryButton(Button button)
+        {
+            button.BackColor = Color.White;
+            button.ForeColor = Color.FromArgb(31, 97, 141);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderColor = Color.FromArgb(31, 97, 141);
+            button.FlatAppearance.BorderSize = 1;
+            button.Margin = new Padding(8, 14, 8, 14);
+            button.Cursor = Cursors.Hand;
         }
 
         private static string Ru(string value) => value;

@@ -12,6 +12,8 @@ namespace conda_infor_project
         private readonly DataGridView _activityGrid;
         private readonly Label _statusLabel;
 
+        public bool WasLoggedOut { get; private set; }
+
         public TeacherDashboard(User currentUser, string accessToken, SchoolClass schoolClass)
         {
             _currentUser = currentUser;
@@ -60,10 +62,11 @@ namespace conda_infor_project
             var header = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 3,
+                ColumnCount = 4,
                 RowCount = 2
             };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             header.RowStyles.Add(new RowStyle(SizeType.Percent, 58));
@@ -91,22 +94,28 @@ namespace conda_infor_project
             {
                 Dock = DockStyle.Fill,
                 Text = "Назад",
-                Font = new Font("Segoe UI", 10F),
-                FlatStyle = FlatStyle.Flat
+                Font = new Font("Segoe UI", 10F)
             };
+            StyleSecondaryButton(backButton);
             backButton.Click += (_, _) => Close();
 
             var refreshButton = new Button
             {
                 Dock = DockStyle.Fill,
                 Text = "Обновить",
-                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
-                BackColor = Color.FromArgb(31, 97, 141),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold)
             };
-            refreshButton.FlatAppearance.BorderSize = 0;
+            StylePrimaryButton(refreshButton);
             refreshButton.Click += async (_, _) => await LoadActivityAsync();
+
+            var logoutButton = new Button
+            {
+                Dock = DockStyle.Fill,
+                Text = "Выйти",
+                Font = new Font("Segoe UI", 10F)
+            };
+            StyleSecondaryButton(logoutButton);
+            logoutButton.Click += (_, _) => Logout();
 
             header.Controls.Add(title, 0, 0);
             header.Controls.Add(subtitle, 0, 1);
@@ -114,6 +123,8 @@ namespace conda_infor_project
             header.SetRowSpan(backButton, 2);
             header.Controls.Add(refreshButton, 2, 0);
             header.SetRowSpan(refreshButton, 2);
+            header.Controls.Add(logoutButton, 3, 0);
+            header.SetRowSpan(logoutButton, 2);
 
             return header;
         }
@@ -130,7 +141,11 @@ namespace conda_infor_project
                 RowHeadersVisible = false,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle
+                BorderStyle = BorderStyle.FixedSingle,
+                AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                GridColor = Color.FromArgb(229, 235, 241),
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
 
             grid.Columns.Add("fullName", "ФИО");
@@ -141,9 +156,24 @@ namespace conda_infor_project
             grid.Columns.Add("lastSeen", "Последний сигнал");
 
             grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(10, 10, 10, 10);
+            grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(237, 244, 250);
+            grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(22, 34, 51);
+            grid.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            grid.EnableHeadersVisualStyles = false;
             grid.DefaultCellStyle.Font = new Font("Segoe UI", 10F);
-            grid.DefaultCellStyle.Padding = new Padding(6);
-            grid.RowTemplate.Height = 36;
+            grid.DefaultCellStyle.Padding = new Padding(10, 8, 10, 8);
+            grid.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 252, 254);
+            grid.RowTemplate.Height = 46;
+
+            grid.Columns["fullName"]!.FillWeight = 140;
+            grid.Columns["email"]!.FillWeight = 150;
+            grid.Columns["status"]!.FillWeight = 80;
+            grid.Columns["activeWindow"]!.FillWeight = 180;
+            grid.Columns["processes"]!.FillWeight = 260;
+            grid.Columns["lastSeen"]!.FillWeight = 100;
 
             return grid;
         }
@@ -191,6 +221,42 @@ namespace conda_infor_project
                 _statusLabel.Text = "Ошибка загрузки активности.";
                 MessageBox.Show(ex.Message, "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void Logout()
+        {
+            WasLoggedOut = true;
+
+            login? loginForm = Application.OpenForms.OfType<login>().FirstOrDefault();
+            if (loginForm == null)
+            {
+                loginForm = new login();
+            }
+
+            loginForm.Show();
+            loginForm.Activate();
+            Close();
+        }
+
+        private static void StylePrimaryButton(Button button)
+        {
+            button.BackColor = Color.FromArgb(31, 97, 141);
+            button.ForeColor = Color.White;
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.Margin = new Padding(8, 14, 0, 14);
+            button.Cursor = Cursors.Hand;
+        }
+
+        private static void StyleSecondaryButton(Button button)
+        {
+            button.BackColor = Color.White;
+            button.ForeColor = Color.FromArgb(31, 97, 141);
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderColor = Color.FromArgb(31, 97, 141);
+            button.FlatAppearance.BorderSize = 1;
+            button.Margin = new Padding(8, 14, 8, 14);
+            button.Cursor = Cursors.Hand;
         }
     }
 }

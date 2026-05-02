@@ -1,5 +1,5 @@
-using conda_infor_project.services;
 using conda_infor_project.models;
+using conda_infor_project.services;
 
 namespace conda_infor_project
 {
@@ -37,25 +37,25 @@ namespace conda_infor_project
 
                 User user = await _authService.LoginAsync(email, password);
 
-                if (user != null)
+                if (string.IsNullOrWhiteSpace(_authService.CurrentAccessToken))
                 {
-                    if (!string.Equals(user.Role, "teacher", StringComparison.OrdinalIgnoreCase))
-                    {
-                        MessageBox.Show("Это не аккаунт учителя. Панель учителя доступна только для роли teacher.", "Доступ запрещен", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(_authService.CurrentAccessToken))
-                    {
-                        MessageBox.Show("Вход выполнен, но токен сессии не найден. Попробуйте войти еще раз.", "Ошибка сессии", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-
-                    ClassesForm classesForm = new ClassesForm(user, _authService.CurrentAccessToken);
-                    classesForm.FormClosed += (_, _) => Close();
-                    classesForm.Show();
-                    Hide();
+                    MessageBox.Show("Вход выполнен, но токен сессии не найден. Попробуйте войти еще раз.", "Ошибка сессии", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
                 }
+
+                Form nextForm = string.Equals(user.Role, "teacher", StringComparison.OrdinalIgnoreCase)
+                    ? new ClassesForm(user, _authService.CurrentAccessToken)
+                    : new StudentAgentForm(user, _authService.CurrentAccessToken);
+
+                nextForm.FormClosed += (_, _) =>
+                {
+                    if (!Visible)
+                    {
+                        Close();
+                    }
+                };
+                nextForm.Show();
+                Hide();
             }
             catch (Exception ex)
             {
@@ -72,7 +72,7 @@ namespace conda_infor_project
         {
             register registerForm = new register();
             registerForm.Show();
-            this.Hide();
+            Hide();
         }
 
         private bool IsValidEmail(string email)
@@ -89,4 +89,3 @@ namespace conda_infor_project
         }
     }
 }
-
