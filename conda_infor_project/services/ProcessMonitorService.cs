@@ -8,8 +8,9 @@ namespace conda_infor_project.services
 {
     public class ProcessMonitorService
     {
-        private const string ScriptFileName = "process_snapshot.py";
-        private const int ScriptTimeoutSeconds = 4;
+        private const string CollectorExeFileName = "process_snapshot.exe";
+        private const string CollectorPyFileName = "process_snapshot.py";
+        private const int CollectorTimeoutSeconds = 4;
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -24,34 +25,50 @@ namespace conda_infor_project.services
 
         public async Task<ActivitySnapshot> CaptureSnapshotAsync()
         {
-            string? scriptPath = ResolveScriptPath();
-            if (scriptPath == null)
+            CollectorFile? collector = ResolveCollectorFile();
+            if (collector == null)
             {
                 return CreateFallbackSnapshot(
-                    "Python script was not found. Put it into conda_infor_project/scripts/process_snapshot.py.",
-                    GetExpectedScriptPath());
+                    "Collector was not found. Build scripts/process_snapshot.exe or add scripts/process_snapshot.py.",
+                    GetExpectedCollectorPath());
             }
 
-            var errors = new List<string>();
+            List<string> errors = new List<string>();
+            if (collector.Kind == CollectorKind.Exe)
+            {
+                ScriptRunResult exeResult = await RunProcessAsync(collector.Path, string.Empty, "collector-exe");
+                if (exeResult.Success)
+                {
+                    return ParseSnapshot(exeResult.Stdout, exeResult.Stderr, collector.Path, "collector-exe");
+                }
+
+                errors.Add(exeResult.ErrorMessage);
+                return CreateFallbackSnapshot(string.Join(" | ", errors), collector.Path);
+            }
+
             foreach (PythonRunner runner in PythonRunners)
             {
-                ScriptRunResult result = await RunPythonScriptAsync(runner, scriptPath);
+                ScriptRunResult result = await RunProcessAsync(
+                    runner.FileName,
+                    string.Format(runner.ArgumentsFormat, collector.Path),
+                    $"python:{runner.FileName}");
+
                 if (result.Success)
                 {
-                    return ParsePythonSnapshot(result.Stdout, result.Stderr, scriptPath, runner.FileName);
+                    return ParseSnapshot(result.Stdout, result.Stderr, collector.Path, $"python:{runner.FileName}");
                 }
 
                 errors.Add(result.ErrorMessage);
             }
 
-            return CreateFallbackSnapshot(string.Join(" | ", errors), scriptPath);
+            return CreateFallbackSnapshot(string.Join(" | ", errors), collector.Path);
         }
 
-        private static string? ResolveScriptPath()
+        private static CollectorFile? ResolveCollectorFile()
         {
-            foreach (string candidate in GetScriptCandidates())
+            foreach (CollectorFile candidate in GetCollectorCandidates())
             {
-                if (File.Exists(candidate))
+                if (File.Exists(candidate.Path))
                 {
                     return candidate;
                 }
@@ -60,38 +77,44 @@ namespace conda_infor_project.services
             return null;
         }
 
-        private static string GetExpectedScriptPath()
+        private static string GetExpectedCollectorPath()
         {
-            return GetScriptCandidates().First();
+            return GetCollectorCandidates().First().Path;
         }
 
-        private static IEnumerable<string> GetScriptCandidates()
+        private static IEnumerable<CollectorFile> GetCollectorCandidates()
         {
             string baseDirectory = AppContext.BaseDirectory;
             string currentDirectory = Environment.CurrentDirectory;
 
-            string[] candidates =
+            string[] roots =
             {
-                Path.Combine(baseDirectory, "scripts", ScriptFileName),
-                Path.Combine(currentDirectory, "scripts", ScriptFileName),
-                Path.Combine(currentDirectory, "conda_infor_project", "scripts", ScriptFileName),
-                Path.Combine(baseDirectory, "..", "..", "..", "scripts", ScriptFileName)
+                Path.Combine(baseDirectory, "scripts"),
+                Path.Combine(currentDirectory, "scripts"),
+                Path.Combine(currentDirectory, "conda_infor_project", "scripts"),
+                Path.Combine(baseDirectory, "..", "..", "..", "scripts")
             };
 
-            return candidates
-                .Select(path => Path.GetFullPath(path))
-                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (string root in roots.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                yield return new CollectorFile(Path.Combine(root, CollectorExeFileName), CollectorKind.Exe);
+            }
+
+            foreach (string root in roots.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                yield return new CollectorFile(Path.Combine(root, CollectorPyFileName), CollectorKind.Python);
+            }
         }
 
-        private static async Task<ScriptRunResult> RunPythonScriptAsync(PythonRunner runner, string scriptPath)
+        private static async Task<ScriptRunResult> RunProcessAsync(string fileName, string arguments, string runnerName)
         {
             try
             {
                 using var process = new Process();
                 process.StartInfo = new ProcessStartInfo
                 {
-                    FileName = runner.FileName,
-                    Arguments = string.Format(runner.ArgumentsFormat, scriptPath),
+                    FileName = fileName,
+                    Arguments = arguments,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -105,7 +128,7 @@ namespace conda_infor_project.services
                 Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
                 Task<string> stderrTask = process.StandardError.ReadToEndAsync();
 
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(ScriptTimeoutSeconds));
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(CollectorTimeoutSeconds));
                 try
                 {
                     await process.WaitForExitAsync(timeout.Token);
@@ -113,7 +136,7 @@ namespace conda_infor_project.services
                 catch (OperationCanceledException)
                 {
                     TryKill(process);
-                    return ScriptRunResult.Fail($"{runner.FileName}: timeout after {ScriptTimeoutSeconds} seconds.");
+                    return ScriptRunResult.Fail($"{runnerName}: timeout after {CollectorTimeoutSeconds} seconds.");
                 }
 
                 string stdout = await stdoutTask;
@@ -122,47 +145,47 @@ namespace conda_infor_project.services
                 if (process.ExitCode != 0)
                 {
                     string message = string.IsNullOrWhiteSpace(stderr) ? "no stderr" : stderr.Trim();
-                    return ScriptRunResult.Fail($"{runner.FileName}: exit code {process.ExitCode}. {message}");
+                    return ScriptRunResult.Fail($"{runnerName}: exit code {process.ExitCode}. {message}");
                 }
 
                 return ScriptRunResult.Ok(stdout, stderr);
             }
             catch (Win32Exception ex)
             {
-                return ScriptRunResult.Fail($"{runner.FileName}: cannot start Python runner. {ex.Message}");
+                return ScriptRunResult.Fail($"{runnerName}: cannot start process. {ex.Message}");
             }
             catch (Exception ex)
             {
-                return ScriptRunResult.Fail($"{runner.FileName}: {ex.Message}");
+                return ScriptRunResult.Fail($"{runnerName}: {ex.Message}");
             }
         }
 
-        private static ActivitySnapshot ParsePythonSnapshot(
+        private static ActivitySnapshot ParseSnapshot(
             string stdout,
             string stderr,
-            string scriptPath,
+            string collectorPath,
             string runnerName)
         {
             if (string.IsNullOrWhiteSpace(stdout))
             {
-                return CreateFallbackSnapshot("Python script returned empty stdout.", scriptPath);
+                return CreateFallbackSnapshot("Collector returned empty stdout.", collectorPath);
             }
 
             try
             {
-                PythonActivitySnapshot? pythonSnapshot = JsonSerializer.Deserialize<PythonActivitySnapshot>(stdout, JsonOptions);
-                if (pythonSnapshot?.Processes == null)
+                PythonActivitySnapshot? collectorSnapshot = JsonSerializer.Deserialize<PythonActivitySnapshot>(stdout, JsonOptions);
+                if (collectorSnapshot?.Processes == null)
                 {
-                    return CreateFallbackSnapshot("Python JSON must contain processes array.", scriptPath);
+                    return CreateFallbackSnapshot("Collector JSON must contain processes array.", collectorPath);
                 }
 
-                List<string> processes = NormalizeProcesses(pythonSnapshot.Processes);
+                List<string> processes = NormalizeProcesses(collectorSnapshot.Processes);
                 if (processes.Count == 0)
                 {
-                    return CreateFallbackSnapshot("Python JSON processes array is empty.", scriptPath);
+                    return CreateFallbackSnapshot("Collector JSON processes array is empty.", collectorPath);
                 }
 
-                string debug = ExtractDebugMessage(pythonSnapshot.Debug);
+                string debug = ExtractDebugMessage(collectorSnapshot.Debug);
                 if (string.IsNullOrWhiteSpace(debug))
                 {
                     debug = stderr.Trim();
@@ -170,21 +193,21 @@ namespace conda_infor_project.services
 
                 return new ActivitySnapshot
                 {
-                    ActiveWindow = pythonSnapshot.ActiveWindow ?? string.Empty,
+                    ActiveWindow = collectorSnapshot.ActiveWindow ?? string.Empty,
                     Processes = processes,
                     IsFallback = false,
-                    DebugSource = $"python:{runnerName}",
-                    ScriptPath = scriptPath,
+                    DebugSource = runnerName,
+                    ScriptPath = collectorPath,
                     DebugMessage = debug
                 };
             }
             catch (Exception ex)
             {
-                return CreateFallbackSnapshot($"Invalid Python JSON: {ex.Message}", scriptPath);
+                return CreateFallbackSnapshot($"Invalid collector JSON: {ex.Message}", collectorPath);
             }
         }
 
-        private static ActivitySnapshot CreateFallbackSnapshot(string debugMessage, string scriptPath)
+        private static ActivitySnapshot CreateFallbackSnapshot(string debugMessage, string collectorPath)
         {
             return new ActivitySnapshot
             {
@@ -197,7 +220,7 @@ namespace conda_infor_project.services
                 },
                 IsFallback = true,
                 DebugSource = "sample",
-                ScriptPath = scriptPath,
+                ScriptPath = collectorPath,
                 DebugMessage = debugMessage
             };
         }
@@ -246,6 +269,14 @@ namespace conda_infor_project.services
             {
             }
         }
+
+        private enum CollectorKind
+        {
+            Exe,
+            Python
+        }
+
+        private sealed record CollectorFile(string Path, CollectorKind Kind);
 
         private sealed record PythonRunner(string FileName, string ArgumentsFormat);
 
